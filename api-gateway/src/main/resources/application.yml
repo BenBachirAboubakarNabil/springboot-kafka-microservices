@@ -93,9 +93,18 @@ management:
   endpoints:
     web:
       exposure:
-        include: "*"
+        include: health, prometheus
+  endpoint:
+    health:
+      show-details: always
   tracing:
     sampling:
       probability: 1
+  metrics:
+    export:
+      otlp:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
 server:
   port: 9191

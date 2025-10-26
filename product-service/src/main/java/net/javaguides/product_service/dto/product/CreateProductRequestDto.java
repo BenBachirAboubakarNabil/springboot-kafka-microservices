@@ -27,5 +27,8 @@ public class CreateProductRequestDto {
     @NotNull
     @Min(value = 1, message = "Stock quantity must be greater than 0")
     private Integer stockQuantity;
+
     private MultipartFile multipartFile;
+
+    private String imageUrl;
 }

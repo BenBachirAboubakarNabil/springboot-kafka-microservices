@@ -1,6 +1,7 @@
 package net.javaguides.order_service.paypal;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +16,7 @@ import java.util.Base64;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PayPalService {
 
     @Value("${paypal.client-id}")
@@ -26,13 +28,16 @@ public class PayPalService {
     private static final String PAYPAL_API = "https://api.sandbox.paypal.com/v2/checkout/orders/";
     //*
     public void refundPayment(String captureId) {
+        log.info("Initiating refund for capture ID: {}", captureId);
        try {
            URL url = new URL("https://api.sandbox.paypal.com/v2/payments/captures/" + captureId + "/refund");
            int responseCode = getResponseCode(url);
            if (responseCode != HttpURLConnection.HTTP_CREATED) {
+                log.error("Refund failed for capture ID: {} with response code: {}", captureId, responseCode);
                throw new RuntimeException("Refund failed with response code: " + responseCode);
            }
        }catch(Exception e){
+              log.error("Exception occurred during refund for capture ID: {}: {}", captureId, e.getMessage());
            throw new RuntimeException("Refund failed: " + e.getMessage());
        }
     }
@@ -69,8 +74,10 @@ public class PayPalService {
                 }
             }
         } else {
+            log.error("Failed to retrieve order details for order ID: {} with response code: {}", orderId, responseCode);
             throw new RuntimeException("Failed to retrieve order details from PayPal.");
         }
+        log.warn("No completed capture found for order ID: {}", orderId);
         return null;
     }
 
@@ -118,6 +125,7 @@ public class PayPalService {
                 return jsonResponse.getString("access_token");
             }
         } else {
+            log.error("Failed to get access token from PayPal with response code: {}", responseCode);
             throw new RuntimeException("Failed to get access token.");
         }
     }

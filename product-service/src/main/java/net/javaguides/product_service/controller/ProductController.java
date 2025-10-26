@@ -29,7 +29,7 @@ import java.util.Set;
 public class ProductController {
     private final ProductService productService;
     @PostMapping
-    public ResponseEntity<ApiResponse<?>> saveProduct(@ModelAttribute @Valid CreateProductRequestDto createProductRequestDto) {
+    public ResponseEntity<ApiResponse<?>> saveProduct(@RequestBody  @Valid CreateProductRequestDto createProductRequestDto) {
         try {
             ProductResponseDto createdProductDto = productService.saveProduct(createProductRequestDto);
             ApiResponse<ProductResponseDto> apiResponse = new ApiResponse<>(createdProductDto, HttpStatus.CREATED.value());

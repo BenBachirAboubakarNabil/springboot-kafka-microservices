@@ -17,6 +17,7 @@ import net.javaguides.order_service.entity.OrderItem;
 import net.javaguides.order_service.entity.OrderStatus;
 import net.javaguides.order_service.exception.OrderException;
 import net.javaguides.order_service.kafka.OrderProducer;
+import net.javaguides.order_service.metrics.OrderCreationMetrics;
 import net.javaguides.order_service.paypal.PayPalService;
 import net.javaguides.order_service.redis.OrderRedis;
 import net.javaguides.order_service.repository.OrderRepository;
@@ -54,12 +55,16 @@ public class OrderServiceImpl implements OrderService {
     private final PaymentAPIClient paymentAPIClient;
     private final PayPalService payPalService;
     private final OrderRedis orderRedis;
+    private final OrderCreationMetrics orderCreationMetrics;
 
     @Override
     @Transactional
     public OrderDTO placeOrder(OrderRequestDto orderRequestDto, Long userId, String email) {
+        String failureReason = "UNKNOWN_ERROR";
         try {
             if(orderRequestDto.getPaymentMethod().equals("Paypal") && orderRequestDto.getOrderId() == null){
+                LOGGER.warn("Paypal ID is missing in the order request");
+                 failureReason = "MISSING_PAYPAL_ID";
                 throw new OrderException("Please provide Paypal's ID", HttpStatus.BAD_REQUEST);
             }
 
@@ -71,12 +76,17 @@ public class OrderServiceImpl implements OrderService {
 
 
             sendOrderEvent(createdOrder, orderRequestDto.getPaymentMethod(), email);
-
+            LOGGER.info("Order created successfully with ID: {}", createdOrder.getOrderId());
+            orderCreationMetrics.recordAuthenticationOutcome(true, "N/A");
             return modelMapper.map(createdOrder, OrderDTO.class);
         } catch (OrderException e) {
+            failureReason = e.getStatus() == HttpStatus.BAD_REQUEST ? "BAD_REQUEST" :
+                    e.getStatus() == HttpStatus.NOT_FOUND ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR";
+            orderCreationMetrics.recordAuthenticationOutcome(false, failureReason);
             throw e;
         } catch (Exception e) {
             LOGGER.error("Failed to create order: {}", e.getMessage(), e);
+            orderCreationMetrics.recordAuthenticationOutcome(false, "INTERNAL_SERVER_ERROR");
             throw new OrderException("Failed to create order: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -154,15 +164,24 @@ public class OrderServiceImpl implements OrderService {
                     if(captureId != null){
                         sendRefundOrderEvent(order);
                         payPalService.refundPayment(captureId);
+
+                        orderCreationMetrics.recordCancellationOutcome(true, "N/A");
                     }
                 }catch(Exception e){
+                    orderCreationMetrics.recordCancellationOutcome(false, "REFUND_FAILED");
                     throw new OrderException("No captures found for this order. Refund cannot be processed.", HttpStatus.BAD_REQUEST);
                 }
             }
             OrderDTO savedOrderDTO = modelMapper.map(orderRepository.save(order), OrderDTO.class);
             orderRedis.save(savedOrderDTO);
+
+            if (!order.getStatus().equals(OrderStatus.CANCELED.getLabel())) {
+                orderCreationMetrics.recordCancellationOutcome(true, "N/A");
+            }
+
             return savedOrderDTO;
         }
+        orderCreationMetrics.recordCancellationOutcome(false, "ORDER_NOT_FOUND");
         return null;
     }
 

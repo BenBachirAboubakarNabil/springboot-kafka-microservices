@@ -3,6 +3,8 @@ package net.javaguides.api_gateway.filter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.javaguides.api_gateway.util.JwtUtil;
 import net.javaguides.common_lib.dto.ApiResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
@@ -29,6 +31,8 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
     @Autowired
     private ObjectMapper objectMapper;  // Sử dụng để serialize ApiResponse
 
+    private static final Logger log = LoggerFactory.getLogger(AuthenticationFilter.class);
+
     public AuthenticationFilter() {
         super(Config.class);
     }
@@ -40,12 +44,14 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
                 // Kiểm tra xem request có chứa cookie không
                 HttpHeaders headers = exchange.getRequest().getHeaders();
                 if (!headers.containsKey(HttpHeaders.COOKIE)) {
+                    log.warn("Authentication failed: Missing cookies in request headers for URI: {}", exchange.getRequest().getURI());
                     return this.onError(exchange, "Missing cookies", HttpStatus.UNAUTHORIZED);
                 }
 
                 // Lấy token từ cookie
                 String token = extractTokenFromCookies(exchange.getRequest());
                 if (token == null) {
+                    log.warn("Authentication failed: Token is missing or invalid in cookies for URI: {}", exchange.getRequest().getURI());
                     return this.onError(exchange, "Missing or invalid token in cookies", HttpStatus.UNAUTHORIZED);
                 }
 
@@ -53,6 +59,7 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
                     // Kiểm tra tính hợp lệ của token
                     jwtUtil.validateToken(token);
                 } catch (Exception e) {
+                    log.error("Unauthorized access due to JWT validation failure for URI {}: {}", exchange.getRequest().getURI(), e.getMessage());
                     return this.onError(exchange, "Unauthorized access", HttpStatus.UNAUTHORIZED);
                 }
             }
@@ -68,6 +75,7 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
 
     // Hàm để trả về phản hồi lỗi tùy chỉnh
     private Mono<Void> onError(ServerWebExchange exchange, String errorMessage, HttpStatus httpStatus) {
+        log.error("Request rejected [Status: {}] for URI {}: {}", httpStatus.value(), exchange.getRequest().getURI(), errorMessage);
         exchange.getResponse().setStatusCode(httpStatus);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
 

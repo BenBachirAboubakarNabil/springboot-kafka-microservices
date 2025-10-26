@@ -2,6 +2,7 @@ package net.javaguides.order_service.controller;
 
 import jakarta.persistence.OptimisticLockException;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import net.javaguides.common_lib.dto.ApiResponse;
 import net.javaguides.common_lib.dto.order.OrderDTO;
 import net.javaguides.order_service.dto.OrderRequestDto;
@@ -19,6 +20,7 @@ import java.util.Objects;
 
 @RestController
 @RequestMapping("api/v1/order")
+@Slf4j
 public class OrderController {
     private final OrderService orderService;
     private final AuthenticationAPIClient authenticationAPIClient;
@@ -38,6 +40,7 @@ public class OrderController {
      */
     @PostMapping
     public ResponseEntity<ApiResponse<?>> placeOrder(@RequestBody OrderRequestDto order, HttpServletRequest request) {
+        log.info("Starting order placement process");
         try {
             // Extract cookie from the request header
             String cookie = request.getHeader(HttpHeaders.COOKIE);
@@ -46,15 +49,19 @@ public class OrderController {
             ApiResponse<UserDto> user = authenticationAPIClient.getCurrentUser(cookie).getBody();
             if (user != null && user.getData() != null) {
                 // Place order with authenticated user's ID
+                log.debug("Placing order for user ID: {}", user.getData().getId());
                 return new ResponseEntity<>(new ApiResponse<>(orderService.placeOrder(order, user.getData().getId(), user.getData().getEmail()), HttpStatus.CREATED.value()), HttpStatus.CREATED);
             }
             // Return if user not found
+            log.warn("User not found during order placement");
             return new ResponseEntity<>(new ApiResponse<>("User not found!", HttpStatus.NOT_FOUND.value()), HttpStatus.NOT_FOUND);
         } catch (OrderException e) {
             // Handle custom order exceptions
+            log.error("OrderException occurred: {}", e.getMessage());
             return new ResponseEntity<>(new ApiResponse<>(e.getMessage(), e.getStatus().value()), e.getStatus());
         } catch (Exception e) {
             // Handle general exceptions
+            log.error("Exception occurred during order placement: {}", e.getMessage());
             return new ResponseEntity<>(new ApiResponse<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -67,6 +74,7 @@ public class OrderController {
      */
     @PostMapping("/cancel/{orderId}")
     public ResponseEntity<ApiResponse<?>> cancelOrder(@PathVariable("orderId") String orderId, HttpServletRequest request) {
+        log.info("Initiating cancellation for order ID: {}", orderId);
         try {
             // Extract cookie for user authentication
             String cookie = request.getHeader(HttpHeaders.COOKIE);
@@ -81,12 +89,15 @@ public class OrderController {
                     return new ResponseEntity<>(new ApiResponse<>(existingOrder, HttpStatus.OK.value()), HttpStatus.OK);
                 }
                 // Return if order is not found
+                log.warn("Order ID: {} not found for cancellation", orderId);
                 return new ResponseEntity<>(new ApiResponse<>("Order not found!", HttpStatus.NOT_FOUND.value()), HttpStatus.NOT_FOUND);
             }
             // Return if unauthorized request
+            log.warn("Unauthorized request for order cancellation");
             return new ResponseEntity<>(new ApiResponse<>("Unauthorized request!", HttpStatus.NOT_FOUND.value()), HttpStatus.NOT_FOUND);
         } catch (Exception e) {
             // Handle general exceptions
+            log.error("Exception occurred during order cancellation: {}", e.getMessage());
             return new ResponseEntity<>(new ApiResponse<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -98,6 +109,7 @@ public class OrderController {
      */
     @GetMapping("{orderId}")
     public ResponseEntity<ApiResponse<?>> getOrderStatus(@PathVariable("orderId") String orderId) {
+        log.info("Fetching status for order ID: {}", orderId);
         try {
             // Fetch order status based on orderId
             OrderResponseDto existingOrder = orderService.checkOrderStatusByOrderId(orderId);
@@ -106,9 +118,11 @@ public class OrderController {
                 return new ResponseEntity<>(new ApiResponse<>(existingOrder, HttpStatus.OK.value()), HttpStatus.OK);
             }
             // Return if order not found
+            log.warn("Order ID: {} not found", orderId);
             return new ResponseEntity<>(new ApiResponse<>("Order not found!", HttpStatus.NOT_FOUND.value()), HttpStatus.NOT_FOUND);
         } catch (Exception e) {
             // Handle general exceptions
+            log.error("Exception occurred while fetching order status: {}", e.getMessage());
             return new ResponseEntity<>(new ApiResponse<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -116,6 +130,7 @@ public class OrderController {
     @GetMapping
     public ResponseEntity<ApiResponse<?>> getOrders(HttpServletRequest request, @RequestParam(defaultValue = "0") int page,
                                                     @RequestParam(defaultValue = "10") int size) {
+        log.info("Fetching orders for the authenticated user");
         try {
             // Extract cookie from the request header
             String cookie = request.getHeader(HttpHeaders.COOKIE);
@@ -125,6 +140,7 @@ public class OrderController {
 
             return new ResponseEntity<>(new ApiResponse<>(orderService.getAllOrders(user.getData().getId(), page, size), HttpStatus.OK.value()), HttpStatus.OK);
         } catch (Exception e) {
+            log.error("Exception occurred while fetching orders: {}", e.getMessage());
             return new ResponseEntity<>(new ApiResponse<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -137,6 +153,7 @@ public class OrderController {
      */
     @PatchMapping("/update/status/{orderId}")
     public ResponseEntity<ApiResponse<?>> updateOrderStatus(@PathVariable("orderId") String orderId, @RequestHeader(HttpHeaders.IF_MATCH) int version) {
+        log.info("Updating status for order ID: {}", orderId);
         try {
             // Update order status using orderId and version for concurrency control
             OrderResponseDto orderDTO = orderService.updateOrderStatus(orderId, version);
@@ -144,9 +161,11 @@ public class OrderController {
                     : new ResponseEntity<>(new ApiResponse<>("Not found order!", HttpStatus.NOT_FOUND.value()), HttpStatus.NOT_FOUND);
         } catch (IllegalStateException | OptimisticLockException e) {
             // Handle optimistic locking and state-related exceptions
+            log.warn("An error occurred: {}", e.getMessage());
             return new ResponseEntity<>(new ApiResponse<>(e.getMessage(), HttpStatus.BAD_REQUEST.value()), HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
             // Handle general exceptions
+            log.error("Exception occurred while updating order status: {}", e.getMessage());
             return new ResponseEntity<>(new ApiResponse<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value()), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

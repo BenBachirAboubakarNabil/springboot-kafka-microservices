@@ -4,6 +4,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.ws.rs.core.SecurityContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import net.javaguides.identity_service.config.CustomUserDetails;
 import net.javaguides.identity_service.dto.AuthRequest;
 import net.javaguides.identity_service.dto.SignUpRequest;
@@ -29,6 +30,7 @@ import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthServiceImpl implements AuthService {
     private final UserCredentialRepository userCredentialRepository;
     private final PasswordEncoder passwordEncoder;
@@ -41,6 +43,7 @@ public class AuthServiceImpl implements AuthService {
         try {
             boolean existingUsername = checkExistingUsername(signUpRequest.getName());
             if(existingUsername){
+                log.warn("Username {} already exists!", signUpRequest.getName());
                 throw new AuthException("Username already exists in the database!", HttpStatus.BAD_REQUEST);
             }
             UserCredential userCredential = new UserCredential();
@@ -52,6 +55,7 @@ public class AuthServiceImpl implements AuthService {
                 Role role = roleRepository.findByName(ERole.CUSTOMER)
                         .orElseThrow(() -> new RuntimeException("Role not found"));
                 roles.add(role);
+                log.debug("Assigned default role CUSTOMER to user {}", signUpRequest.getName());
             }else{
                 for (String roleName : signUpRequest.getRoles()) {
                     ERole eRole;
@@ -70,6 +74,7 @@ public class AuthServiceImpl implements AuthService {
             userCredentialRepository.save(userCredential);
             return "User added to the system!";
         }catch(Exception e){
+            log.error("Error registering user: {}", e.getMessage());
             throw new RuntimeException("Error registering user: " + e.getMessage());
         }
     }
@@ -79,7 +84,8 @@ public class AuthServiceImpl implements AuthService {
         Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(authRequest.getUsername(), authRequest.getPassword()));
 
         Optional<UserCredential> optionalUser = userCredentialRepository.findByName(authRequest.getUsername());
-        if(!optionalUser.isPresent()){
+        if(optionalUser.isEmpty()){
+            log.warn("Invalid credentials for username");
             throw new AuthException("Invalid credentials! Please try again!",HttpStatus.UNAUTHORIZED);
         }
 

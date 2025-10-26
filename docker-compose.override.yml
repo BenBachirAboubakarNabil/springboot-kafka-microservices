@@ -1,0 +1,201 @@
+# docker-compose.override.yml
+x-otel-common: &otel_common
+  volumes:
+    - ./observability/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+  networks:
+    - shop-network
+
+services:
+  api-gateway:
+    <<: *otel_common
+    build: ./api-gateway
+    image: springboot-kafka-microservices/api-gateway:latest
+    environment:
+      JAVA_TOOL_OPTIONS: -javaagent:/otel/opentelemetry-javaagent.jar
+      OTEL_SERVICE_NAME: api-gateway
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      #      OTEL_LOGS_EXPORTER: none
+      OTEL_INSTRUMENTATION_JVM_METRICS_ENABLED: "true"
+      SPRING_ZIPKIN_BASE_URL: http://127.0.0.1:9999/
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: 0.0
+      SERVICE_NAME: api-gateway
+
+  identity-service:
+    <<: *otel_common
+    build: ./identity-service
+    image: springboot-kafka-microservices/identity-service:latest
+    environment:
+      JAVA_TOOL_OPTIONS: -javaagent:/otel/opentelemetry-javaagent.jar
+      OTEL_SERVICE_NAME: identity-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      #      OTEL_LOGS_EXPORTER: none
+      OTEL_INSTRUMENTATION_JVM_METRICS_ENABLED: "true"
+      SPRING_ZIPKIN_BASE_URL: http://127.0.0.1:9999/
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: 0.0
+      SERVICE_NAME: identity-service
+
+  order-service:
+    <<: *otel_common
+    build: ./order-service
+    image: springboot-kafka-microservices/order-service:latest
+    environment:
+      JAVA_TOOL_OPTIONS: -javaagent:/otel/opentelemetry-javaagent.jar
+      OTEL_SERVICE_NAME: order-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      #      OTEL_LOGS_EXPORTER: none
+      OTEL_INSTRUMENTATION_JVM_METRICS_ENABLED: "true"
+      SPRING_ZIPKIN_BASE_URL: http://127.0.0.1:9999/
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: 0.0
+      SERVICE_NAME: order-service
+
+  payment-service:
+    <<: *otel_common
+    build: ./payment-service
+    image: springboot-kafka-microservices/payment-service:latest
+    environment:
+      JAVA_TOOL_OPTIONS: -javaagent:/otel/opentelemetry-javaagent.jar
+      OTEL_SERVICE_NAME: payment-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      #      OTEL_LOGS_EXPORTER: none
+      OTEL_INSTRUMENTATION_JVM_METRICS_ENABLED: "true"
+      SPRING_ZIPKIN_BASE_URL: http://127.0.0.1:9999/
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: 0.0
+      SERVICE_NAME: payment-service
+
+  product-service:
+    <<: *otel_common
+    build: ./product-service
+    image: springboot-kafka-microservices/product-service:latest
+    environment:
+      JAVA_TOOL_OPTIONS: -javaagent:/otel/opentelemetry-javaagent.jar
+      OTEL_SERVICE_NAME: product-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      #      OTEL_LOGS_EXPORTER: none
+      OTEL_INSTRUMENTATION_JVM_METRICS_ENABLED: "true"
+      SPRING_ZIPKIN_BASE_URL: http://127.0.0.1:9999/
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: 0.0
+      MANAGEMENT_METRICS_EXPORT_OTLP_ENABLED: "false"
+      SERVICE_NAME: product-service
+      SPRING_PROFILES_ACTIVE: docker
+      cloudinary.cloud_name: dummy
+      cloudinary.api_key: dummy
+      cloudinary.api_secret: dummy
+
+  eureka-server:
+    <<: *otel_common
+    build: { context: ./service-registry, dockerfile: Dockerfile }
+    image: springboot-kafka-microservices/eureka-server:latest
+    environment:
+      JAVA_TOOL_OPTIONS: -javaagent:/otel/opentelemetry-javaagent.jar
+      OTEL_SERVICE_NAME: eureka-server
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      #      OTEL_LOGS_EXPORTER: none
+      OTEL_INSTRUMENTATION_JVM_METRICS_ENABLED: "true"
+      SPRING_ZIPKIN_BASE_URL: http://127.0.0.1:9999/
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: 0.0
+      SERVICE_NAME: eureka-server
+
+
+  ## Observability Services
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./observability/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8888:8888"   # Health check endpoint
+      - "9464:9464"   # Prometheus metrics endpoint
+    networks:
+      - shop-network
+
+  loki:
+    image: grafana/loki:2.9.6
+    container_name: loki
+    command: -config.file=/etc/loki/config.yml
+    volumes:
+      - ./observability/loki-config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - shop-network
+
+  promtail:
+    image: grafana/promtail:2.9.6
+    container_name: promtail
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./observability/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    ports:
+      - "9080:9080"
+    networks:
+      - shop-network
+
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning
+      - ./observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    environment:
+      GF_SERVER_ROOT_URL: http://localhost:3000
+    depends_on:
+      - loki
+      - otel-collector
+    networks:
+      - shop-network
+
+  tempo:
+    image: grafana/tempo:2.4.1
+    container_name: tempo
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ./observability/tempo-config.yml:/etc/tempo.yaml:ro
+      - tempo-data:/tmp/tempo
+    ports:
+      - "3200:3200"
+    networks:
+      - shop-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - shop-network
+
+
+volumes:
+  loki-data:
+  grafana-data:
+  tempo-data:

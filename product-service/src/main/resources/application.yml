@@ -42,6 +42,12 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
     hibernate:
       ddl-auto: update
+    open-in-view: false
+
+  data:
+    redis:
+      repositories:
+        enabled: false
 
 server:
   port: 8084
@@ -56,6 +62,18 @@ management:
     web:
       exposure:
         include: "*"
+  metrics:
+    export:
+      otlp:
+        enabled: true
+        url: http://otel-collector:4318/v1/metrics
   tracing:
+    enabled: true
     sampling:
       probability: 1
+
+
+  cloudinary:
+    cloud_name: ${CLOUDINARY_CLOUD_NAME:your_cloud_name}
+    api_key: ${CLOUDINARY_API_KEY:your_api_key}
+    api_secret: ${CLOUDINARY_API_SECRET:your_api_secret}

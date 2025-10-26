@@ -1,0 +1,60 @@
+<configuration>
+    <springProperty scope="context" name="APP_NAME" source="SERVICE_NAME" defaultValue="unknown"/>
+    <property name="LOG_DIR" value="/app/logs"/>
+
+    <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp timeZone="UTC"/>
+                <pattern>
+                    <pattern>
+                        {
+                        "level":"%level",
+                        "logger":"%logger",
+                        "thread":"%thread",
+                        "service.name":"${APP_NAME}",
+                        "message":"%message",
+                        "trace_id":"%X{trace_id:-}",
+                        "span_id":"%X{span_id:-}",
+                        "request_id":"%X{request_id:-}"
+                        }
+                    </pattern>
+                </pattern>
+                <mdc/>
+            </providers>
+        </encoder>
+    </appender>
+
+    <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${APP_NAME}.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/${APP_NAME}.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>7</maxHistory>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp timeZone="UTC"/>
+                <pattern>
+                    <pattern>
+                        {
+                        "level":"%level",
+                        "logger":"%logger",
+                        "thread":"%thread",
+                        "service.name":"${APP_NAME}",
+                        "message":"%message",
+                        "trace_id":"%X{trace_id:-}",
+                        "span_id":"%X{span_id:-}",
+                        "request_id":"%X{request_id:-}"
+                        }
+                    </pattern>
+                </pattern>
+                <mdc/>
+            </providers>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="JSON_CONSOLE"/>
+        <appender-ref ref="JSON_FILE"/>
+    </root>
+</configuration>

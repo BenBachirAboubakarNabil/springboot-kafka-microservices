@@ -54,6 +54,7 @@ public class AuthConfig {
                                 "/configuration/security",
                                 "/swagger-ui.html",
                                 "/webjars/**",
+                                "/actuator/**",
                                 "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated()
                 )

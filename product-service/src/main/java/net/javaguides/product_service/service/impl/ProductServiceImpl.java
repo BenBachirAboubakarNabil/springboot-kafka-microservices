@@ -65,26 +65,38 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     public ProductResponseDto saveProduct(CreateProductRequestDto createProductRequestDto) {
         try {
-            String publicId = System.currentTimeMillis() + "_" + createProductRequestDto.getMultipartFile().getOriginalFilename().replace(".jpg", "");
-            String preUrl = "https://res.cloudinary.com/" + cloudName + "/image/upload/" + publicId + "." + getFileExtension(createProductRequestDto.getMultipartFile());
-
-            // Map DTO sang Product entity
             Product product = modelMapper.map(createProductRequestDto, Product.class);
             product.setId(UUID.randomUUID().toString());
-            product.setImageUrl(preUrl);
-            Product savedProduct = productRepository.save(product);
 
-            // Lưu sản phẩm vào cache
+            // Gestion optionnelle du fichier
+            MultipartFile file = createProductRequestDto.getMultipartFile();
+            if (file != null && !file.isEmpty()) {
+                String originalName = file.getOriginalFilename();
+                String publicId = System.currentTimeMillis() + "_" + originalName.replace(".jpg", "");
+                String preUrl = "https://res.cloudinary.com/" + cloudName + "/image/upload/" + publicId + "." + getFileExtension(file);
+
+                product.setImageUrl(preUrl);
+
+                // Upload vers Cloudinary après sauvegarde
+                Product savedProduct = productRepository.save(product);
+                productDAO.save(savedProduct);
+                cloudinaryService.uploadFile(file, publicId);
+
+                return modelMapper.map(savedProduct, ProductResponseDto.class);
+            }
+
+
+            product.setImageUrl(createProductRequestDto.getImageUrl());
+            Product savedProduct = productRepository.save(product);
             productDAO.save(savedProduct);
 
-            // Upload ảnh lên Cloudinary (nên thực hiện sau khi lưu sản phẩm thành công)
-            cloudinaryService.uploadFile(createProductRequestDto.getMultipartFile(), publicId);
-
             return modelMapper.map(savedProduct, ProductResponseDto.class);
+
         } catch (Exception e) {
             throw new ProductException("Failed to create product: " + e.getMessage(), HttpStatus.BAD_REQUEST);
         }
     }
+
 
 
 
@@ -110,6 +122,7 @@ public class ProductServiceImpl implements ProductService {
 
 
     @Override
+    @Transactional
     public Page<ProductResponseDto> getProductList(int page, int size) {
         Page<Product> productPage = productRepository.findAll(PageRequest.of(page, size));
 
@@ -165,6 +178,7 @@ public class ProductServiceImpl implements ProductService {
 
 
     @Override
+    @Transactional
     public List<ProductResponseDto> getProductsByIds(Set<String> productIds) {
         return productRepository.findAllByIdIn(productIds)
                 .stream()
